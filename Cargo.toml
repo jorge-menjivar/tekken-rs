@@ -46,7 +46,7 @@ rustfft = "6.4.0"
 ndarray = "0.16"
 log = "0.4"
 env_logger = "0.11"
-rustc-hash = "1.1.0"
+rustc-hash = "2.1.1"
 
 
 [dev-dependencies]
