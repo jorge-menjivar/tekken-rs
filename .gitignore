@@ -1,0 +1,44 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test outputs
+*_results.json
+*_output.json
+*.wav
+!samples_jfk.wav
+!test_audio.wav
+!tests/assets/*.wav
+
+# Temporary files
+*.tmp
+*.log
+
+# Environment
+.env
+.env.local
+
+.claude/

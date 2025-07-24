@@ -1,0 +1,35 @@
+tekken-rs
+Copyright 2024 Jorge Menjivar
+
+This product includes software developed by Jorge Menjivar.
+
+========================================================================
+
+This is an original Rust implementation of a Tekken tokenizer with audio
+support, written by Jorge Menjivar.
+
+The implementation is designed to be compatible with Mistral AI's Tekken
+tokenizer format and uses their tokenizer model files:
+
+Tokenizer Model Files:
+- tekken_240718.json, tekken_240911.json
+- Source: Mistral AI's tokenizer models
+- License: Apache License 2.0
+
+These model files enable compatibility with Mistral AI's tokenization
+format while the implementation itself is original Rust code.
+
+========================================================================
+
+Third-party Dependencies:
+
+This project uses the following third-party Rust crates:
+- tiktoken-rs: For BPE tokenization (MIT License)
+- base64: For encoding/decoding (MIT/Apache-2.0)
+- serde: For serialization (MIT/Apache-2.0)
+- hound: For WAV file processing (Apache-2.0)
+- rubato: For audio resampling (MIT)
+- rustfft: For FFT operations (MIT/Apache-2.0)
+- ndarray: For numerical arrays (MIT/Apache-2.0)
+
+See Cargo.toml for the complete list of dependencies and their versions.

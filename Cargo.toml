@@ -1,0 +1,53 @@
+[package]
+name = "tekken-rs"
+version = "0.1.0"
+edition = "2024"
+description = "Rust implementation of Mistral Tekken tokenizer with audio support"
+authors = ["Jorge Menjivar"]
+license = "Apache-2.0"
+repository = "https://github.com/jorge-menjivar/tekken-rs"
+homepage = "https://github.com/jorge-menjivar/tekken-rs"
+documentation = "https://docs.rs/tekken-rs"
+readme = "README.md"
+keywords = ["tokenizer", "nlp", "ai", "audio", "mistral"]
+categories = ["text-processing", "multimedia::audio", "science"]
+
+include = [
+    "src/**/*",
+    "examples/**/*",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "tests/assets/tekken.json",
+]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+name = "tekken"
+path = "src/lib.rs"
+
+
+[dependencies]
+base64 = "0.22"
+regex = "1.11.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0.12"
+anyhow = "1.0"
+tiktoken-rs = "0.7.0"
+hound = "3.5"
+rubato = "0.16.2"
+rustfft = "6.4.0"
+ndarray = "0.16"
+log = "0.4"
+env_logger = "0.11"
+rustc-hash = "1.1.0"
+
+
+[dev-dependencies]
+tempfile = "3.20.0"
+approx = "0.5"
