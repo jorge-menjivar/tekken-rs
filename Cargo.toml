@@ -19,7 +19,6 @@ include = [
     "README.md",
     "LICENSE",
     "NOTICE",
-    "tests/assets/tekken.json",
 ]
 
 [package.metadata.docs.rs]
