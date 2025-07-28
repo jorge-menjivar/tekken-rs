@@ -1,0 +1,136 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  publish-crate:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://crates.io/crates/tekken-rs
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4.2.2
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6
+
+      - name: Check version matches tag
+        run: |
+          # Extract version from Cargo.toml
+          CARGO_VERSION=$(grep "^version" Cargo.toml | head -1 | cut -d'"' -f2)
+          echo "Cargo.toml version: $CARGO_VERSION"
+
+          # Get tag name (remove 'refs/tags/' prefix)
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          echo "Git tag: $TAG_NAME"
+
+          # Check if tag starts with 'v'
+          if [[ ! "$TAG_NAME" =~ ^v[0-9] ]]; then
+            echo "Error: Tag must start with 'v' followed by a version number!"
+            echo "  Current tag: $TAG_NAME"
+            echo "  Expected format: v0.1.1"
+            echo ""
+            echo "Please create a tag that starts with 'v'."
+            exit 1
+          fi
+
+          # Remove 'v' prefix from tag for comparison
+          TAG_VERSION="${TAG_NAME#v}"
+          echo "Tag version: $TAG_VERSION"
+
+          # Check if versions match
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: Version mismatch!"
+            echo "  Cargo.toml version: $CARGO_VERSION"
+            echo "  Git tag version: $TAG_VERSION"
+            echo ""
+            echo "Please ensure the version in Cargo.toml matches the git tag."
+            echo "For example:"
+            echo "  - If Cargo.toml has version = \"0.1.1\""
+            echo "  - The git tag must be 'v0.1.1'"
+            exit 1
+          fi
+
+          echo "✓ Version check passed: $CARGO_VERSION matches tag $TAG_NAME"
+
+      - name: Check package size
+        run: |
+          # Run dry-run and capture output
+          echo "Running cargo publish --dry-run..."
+          DRY_RUN_OUTPUT=$(cargo publish --dry-run 2>&1)
+          echo "$DRY_RUN_OUTPUT"
+
+          # Extract size from output (format: "Packaged X files, Y.ZKiB (A.BKiB compressed)")
+          SIZE_LINE=$(echo "$DRY_RUN_OUTPUT" | grep -E "Packaged.*\([0-9.]+[KM]iB compressed\)")
+          if [ -z "$SIZE_LINE" ]; then
+            echo "Warning: Could not extract package size from output"
+          else
+            # Extract compressed size (the one in parentheses)
+            COMPRESSED_SIZE=$(echo "$SIZE_LINE" | sed -E 's/.*\(([0-9.]+)([KM])iB compressed\).*/\1 \2/')
+            SIZE_NUM=$(echo "$COMPRESSED_SIZE" | cut -d' ' -f1)
+            SIZE_UNIT=$(echo "$COMPRESSED_SIZE" | cut -d' ' -f2)
+
+            echo "Package compressed size: ${SIZE_NUM}${SIZE_UNIT}iB"
+
+            # Convert to KB for comparison
+            if [ "$SIZE_UNIT" = "M" ]; then
+              SIZE_KB=$(echo "$SIZE_NUM * 1024" | bc | cut -d. -f1)
+            else
+              SIZE_KB=$(echo "$SIZE_NUM" | cut -d. -f1)
+            fi
+
+            # Check if size exceeds 50KB
+            if [ "$SIZE_KB" -gt 50 ]; then
+              echo "Error: Package size (${SIZE_KB}KB) exceeds 50KB limit"
+              echo "Consider:"
+              echo "  - Reviewing included files in Cargo.toml"
+              echo "  - Checking for unnecessary test assets"
+              echo "  - Using exclude patterns for large files"
+              exit 1
+            fi
+
+            echo "✓ Package size check passed (${SIZE_KB}KB <= 50KB)"
+          fi
+
+      # - name: Publish to crates.io
+      #   env:
+      #     CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      #   run: cargo publish
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: publish-crate
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4.2.2
+
+      - name: Create Release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          draft: false
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            ## Installation
+
+            Add to your `Cargo.toml`:
+            ```toml
+            [dependencies]
+            tekken-rs = "${{ github.ref_name }}"
+            ```
+
+            View on [crates.io](https://crates.io/crates/tekken-rs)
