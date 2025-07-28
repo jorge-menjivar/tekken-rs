@@ -93,7 +93,7 @@ pub struct ModelData {
 /// * `V7` - Version with enhanced special tokens and audio support
 /// * `V11` - Updated version with additional features
 /// * `V13` - Latest version with full multimodal capabilities
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenizerVersion {
     V3,
     V7,
@@ -146,7 +146,7 @@ impl TokenizerVersion {
     /// assert_eq!(TokenizerVersion::V13.as_str(), "v13");
     /// ```
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::V3 => "v3",
             Self::V7 => "v7",

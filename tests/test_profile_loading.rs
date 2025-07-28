@@ -44,7 +44,7 @@ fn test_profile_loading() {
     let tokenizer = Tekkenizer::new(
         small_vocab,
         &special_tokens,
-        config.pattern,
+        &config.pattern,
         1000 + config.default_num_special_tokens,
         config.default_num_special_tokens,
         tekken::config::TokenizerVersion::from_string(&config.version)

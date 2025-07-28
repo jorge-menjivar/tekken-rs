@@ -73,7 +73,7 @@ impl Tekkenizer {
     pub fn new(
         vocab: Vec<TokenInfo>,
         special_tokens: &Vec<SpecialTokenInfo>,
-        pattern: String,
+        pattern: &str,
         vocab_size: usize,
         num_special_tokens: usize,
         version: TokenizerVersion,
@@ -124,7 +124,7 @@ impl Tekkenizer {
         // Create tiktoken CoreBPE from mergeable ranks
         let special_tokens: FxHashMap<String, u32> = FxHashMap::default();
 
-        let tekkenizer = CoreBPE::new(mergeable_ranks.clone(), special_tokens, &pattern)
+        let tekkenizer = CoreBPE::new(mergeable_ranks.clone(), special_tokens, pattern)
             .map_err(|e| TokenizerError::InvalidConfig(format!("Failed to create CoreBPE: {e}")))?;
 
         // Create special tokens map
@@ -148,10 +148,10 @@ impl Tekkenizer {
                     // Get token string from tiktoken using efficient lookup
                     #[allow(clippy::cast_possible_truncation)]
                     let token_id = (i - num_special_tokens) as u32;
-                    match rank_to_bytes.get(&token_id) {
-                        Some(bytes) => String::from_utf8_lossy(bytes).to_string(),
-                        None => "<?>".to_string(),
-                    }
+                    rank_to_bytes.get(&token_id).map_or_else(
+                        || "<?>".to_string(),
+                        |bytes| String::from_utf8_lossy(bytes).to_string(),
+                    )
                 }
             })
             .collect();
@@ -243,7 +243,7 @@ impl Tekkenizer {
         Self::new(
             model_data.vocab,
             &special_tokens,
-            model_data.config.pattern,
+            &model_data.config.pattern,
             model_data.config.default_vocab_size,
             model_data.config.default_num_special_tokens,
             version,
@@ -262,7 +262,7 @@ impl Tekkenizer {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
-    pub fn vocab_size(&self) -> usize {
+    pub const fn vocab_size(&self) -> usize {
         self.vocab_size
     }
 
@@ -270,7 +270,7 @@ impl Tekkenizer {
     ///
     /// Special tokens include control tokens like BOS, EOS, and audio tokens.
     #[must_use]
-    pub fn num_special_tokens(&self) -> usize {
+    pub const fn num_special_tokens(&self) -> usize {
         self.num_special_tokens
     }
 
@@ -278,7 +278,7 @@ impl Tekkenizer {
     ///
     /// Different versions may have different vocabulary sizes and special tokens.
     #[must_use]
-    pub fn version(&self) -> &TokenizerVersion {
+    pub const fn version(&self) -> &TokenizerVersion {
         &self.version
     }
 
@@ -575,7 +575,7 @@ impl Tekkenizer {
     ///
     /// `true` if the token is a special token, `false` otherwise.
     #[must_use]
-    pub fn is_special_token(&self, token_id: u32) -> bool {
+    pub const fn is_special_token(&self, token_id: u32) -> bool {
         (token_id as usize) < self.num_special_tokens
     }
 
@@ -592,7 +592,7 @@ impl Tekkenizer {
     /// `true` if the token represents a single byte, `false` otherwise.
     #[must_use]
     #[allow(clippy::cast_possible_truncation)]
-    pub fn is_byte(&self, token_id: u32) -> bool {
+    pub const fn is_byte(&self, token_id: u32) -> bool {
         #[allow(clippy::cast_possible_truncation)]
         if token_id < self.num_special_tokens as u32 {
             false
@@ -730,12 +730,14 @@ impl Tekkenizer {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn encode_audio(&self, audio: Audio) -> Result<AudioEncoding> {
-        match &self.audio_encoder {
-            Some(encoder) => encoder.encode(audio),
-            None => Err(TokenizerError::Audio(
-                "Audio encoder not configured".to_string(),
-            )),
-        }
+        self.audio_encoder.as_ref().map_or_else(
+            || {
+                Err(TokenizerError::Audio(
+                    "Audio encoder not configured".to_string(),
+                ))
+            },
+            |encoder| encoder.encode(audio),
+        )
     }
 
     /// Checks if this tokenizer instance supports audio processing.
@@ -747,7 +749,7 @@ impl Tekkenizer {
     ///
     /// `true` if audio encoding is available, `false` otherwise.
     #[must_use]
-    pub fn has_audio_support(&self) -> bool {
+    pub const fn has_audio_support(&self) -> bool {
         self.audio_encoder.is_some()
     }
 
@@ -758,7 +760,7 @@ impl Tekkenizer {
     /// An optional reference to the `AudioConfig` if audio support is configured.
     /// Returns `None` if the tokenizer was not initialized with audio support.
     #[must_use]
-    pub fn audio_config(&self) -> Option<&AudioConfig> {
+    pub const fn audio_config(&self) -> Option<&AudioConfig> {
         self.audio_config.as_ref()
     }
 

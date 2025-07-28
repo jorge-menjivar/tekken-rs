@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 /// - **Audio tokens**: Audio, `BeginAudio`, Transcribe for audio content
 /// - **Code tokens**: Prefix, Middle, Suffix for code completion
 /// - **System tokens**: `BeginSystem`, `EndSystem` for system prompts
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SpecialTokens {
     Unk,
     Bos,
@@ -65,7 +65,7 @@ impl SpecialTokens {
     /// assert_eq!(SpecialTokens::BeginAudio.as_str(), "[BEGIN_AUDIO]");
     /// ```
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Unk => "<unk>",
             Self::Bos => "<s>",
@@ -125,7 +125,7 @@ impl SpecialTokens {
 ///
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecialTokenPolicy {
     /// Skip special tokens during decoding, excluding them from the output.
     Ignore,

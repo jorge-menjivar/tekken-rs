@@ -44,7 +44,7 @@ fn test_full_vocab_profile() {
     let tokenizer = Tekkenizer::new(
         model_data.vocab,
         &special_tokens,
-        config.pattern,
+        &config.pattern,
         config.default_vocab_size,
         config.default_num_special_tokens,
         tekken::config::TokenizerVersion::from_string(&config.version)
