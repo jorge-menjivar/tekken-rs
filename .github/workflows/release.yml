@@ -24,7 +24,7 @@ jobs:
         uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3
 
       - name: Rust cache
-        uses: swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6
+        uses: swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1
         with:
           shared-key: "release"
 
