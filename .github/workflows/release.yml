@@ -137,7 +137,7 @@ jobs:
             Add to your `Cargo.toml`:
             ```toml
             [dependencies]
-            tekken-rs = "${{ github.ref_name }}"
+            tekken = "${{ github.ref_name }}"
             ```
 
-            View on [crates.io](https://crates.io/crates/tekken-rs)
+            View on [crates.io](https://crates.io/crates/tekken)

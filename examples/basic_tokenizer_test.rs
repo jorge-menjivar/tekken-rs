@@ -1,7 +1,7 @@
 use tekken::tekkenizer::Tekkenizer;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Testing tekken-rs tokenizer...");
+    println!("Testing tekken tokenizer...");
 
     // Load tokenizer
     let tokenizer = Tekkenizer::from_file("tests/assets/tekken.json")?;

@@ -1,6 +1,6 @@
-# tekken-rs
+# tekken
 
-[![crates.io](https://img.shields.io/crates/v/tekken-rs.svg)](https://crates.io/crates/tekken-rs)
+[![crates.io](https://img.shields.io/crates/v/tekken.svg)](https://crates.io/crates/tekken)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fjorge-menjivar.github.io%2Ftekken-rs%2Fcoverage.json)](https://jorge-menjivar.github.io/tekken-rs/)
 
