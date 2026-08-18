@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  UNK: {}", tokenizer.unk_id()?);
 
     // Test various text samples
-    let test_cases = vec![
+    let test_cases = [
         "Hello, world!",
         "This is a test of the tokenizer.",
         "The quick brown fox jumps over the lazy dog.",
@@ -81,8 +81,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test vocabulary access
     println!("\n📚 Vocabulary Sample (first 10 tokens):");
     let vocab = tokenizer.vocab();
-    for i in 0..10.min(vocab.len()) {
-        println!("  {}: {:?}", i, vocab[i]);
+    for (i, piece) in vocab.iter().take(10).enumerate() {
+        println!("  {i}: {piece:?}");
     }
 
     // Test byte token range

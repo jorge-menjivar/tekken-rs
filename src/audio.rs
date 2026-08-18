@@ -124,12 +124,12 @@ impl AudioConfig {
             ));
         }
 
-        if let Some(chunk_length) = chunk_length_s {
-            if chunk_length <= 0.0 {
-                return Err(TokenizerError::InvalidConfig(
-                    "chunk_length_s must be > 0".to_string(),
-                ));
-            }
+        if let Some(chunk_length) = chunk_length_s
+            && chunk_length <= 0.0
+        {
+            return Err(TokenizerError::InvalidConfig(
+                "chunk_length_s must be > 0".to_string(),
+            ));
         }
 
         Ok(Self {
@@ -562,7 +562,9 @@ impl AudioEncoder {
         let signal_length = audio.audio_array.len();
 
         // Calculate signal length after downsampling for spectrogram
-        let signal_length = if signal_length % self.config.audio_encoding_config.hop_length != 0 {
+        let signal_length = if !signal_length
+            .is_multiple_of(self.config.audio_encoding_config.hop_length)
+        {
             #[allow(
                 clippy::cast_possible_truncation,
                 clippy::cast_sign_loss,
