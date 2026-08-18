@@ -1,5 +1,5 @@
 [package]
-name = "tekken-rs"
+name = "tekken"
 version = "0.1.1"
 edition = "2024"
 description = "Rust implementation of Mistral Tekken tokenizer with image and audio support"
@@ -9,16 +9,16 @@ repository = "https://github.com/jorge-menjivar/tekken-rs"
 homepage = "https://github.com/jorge-menjivar/tekken-rs"
 documentation = "https://docs.rs/tekken-rs"
 readme = "README.md"
-keywords = ["tokenizer", "nlp", "ai", "multimodal", "mistral"]
-categories = ["text-processing", "multimedia", "science"]
+keywords = ["ai", "mistral", "multimodal", "nlp", "tokenizer"]
+categories = ["multimedia", "science", "text-processing"]
 
 include = [
-    "src/**/*",
-    "examples/**/*",
-    "Cargo.toml",
-    "README.md",
-    "LICENSE",
-    "NOTICE",
+  "Cargo.toml",
+  "LICENSE",
+  "NOTICE",
+  "README.md",
+  "examples/**/*",
+  "src/**/*",
 ]
 
 [package.metadata.docs.rs]
@@ -28,49 +28,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 [lib]
 name = "tekken"
 path = "src/lib.rs"
-
-
-[features]
-default = ["audio", "image"]
-# Decoding and tokenization of audio waveforms.
-audio = ["dep:hound", "dep:rubato", "dep:rustfft", "dep:ndarray"]
-# Decoding and preprocessing of images.
-image = ["dep:image", "dep:ndarray"]
-
-[dependencies]
-base64 = "0.22"
-regex = "1.11.1"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-thiserror = "2.0.12"
-anyhow = "1.0"
-tiktoken-rs = "0.9.1"
-log = "0.4"
-env_logger = "0.11"
-rustc-hash = "1.1.0"
-
-# Shared by the audio and image features
-ndarray = { version = "0.16", optional = true }
-
-# Audio feature
-hound = { version = "3.5", optional = true }
-rubato = { version = "3.0.0", optional = true }
-rustfft = { version = "6.4.0", optional = true }
-
-# Image feature
-image = { version = "0.25", optional = true, default-features = false, features = [
-    "bmp",
-    "gif",
-    "jpeg",
-    "png",
-    "tiff",
-    "webp",
-] }
-
-
-[dev-dependencies]
-tempfile = "3.20.0"
-approx = "0.5"
 
 [[example]]
 name = "basic_usage"
@@ -83,3 +40,49 @@ required-features = ["audio"]
 [[example]]
 name = "image_tokenization_test"
 required-features = ["image"]
+
+[dependencies]
+anyhow = "1.0"
+base64 = "0.22"
+env_logger = "0.11"
+log = "0.4"
+regex = "1.11.1"
+rustc-hash = "1.1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0.12"
+tiktoken-rs = "0.9.1"
+
+# Shared by the audio and image features
+ndarray = { version = "0.16", optional = true }
+
+# Audio feature
+hound = { version = "3.5", optional = true }
+rubato = { version = "3.0.0", optional = true }
+rustfft = { version = "6.4.0", optional = true }
+
+# Image feature
+image = {
+  version = "0.25",
+  default-features = false,
+  features = [
+    "bmp",
+    "gif",
+    "jpeg",
+    "png",
+    "tiff",
+    "webp",
+  ],
+  optional = true
+}
+
+[dev-dependencies]
+approx = "0.5"
+tempfile = "3.20.0"
+
+[features]
+default = ["audio", "image"]
+# Decoding and tokenization of audio waveforms.
+audio = ["dep:hound", "dep:ndarray", "dep:rubato", "dep:rustfft"]
+# Decoding and preprocessing of images.
+image = ["dep:image", "dep:ndarray"]
