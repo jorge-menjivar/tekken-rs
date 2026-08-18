@@ -45,6 +45,14 @@ pub enum TokenizerError {
     #[error("Invalid configuration: {0}")]
     InvalidConfig(String),
 
+    /// A request-level value was rejected by the model's settings constraints.
+    ///
+    /// Mirrors `InvalidRequestException` in `mistral-common`: unlike
+    /// [`TokenizerError::InvalidConfig`], this indicates a bad caller-supplied
+    /// value, not a broken tokenizer file.
+    #[error("Invalid request: {0}")]
+    InvalidRequest(String),
+
     /// Required token (usually special token) was not found in vocabulary.
     #[error("Token not found: {0}")]
     TokenNotFound(String),

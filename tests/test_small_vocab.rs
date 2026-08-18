@@ -1,5 +1,6 @@
-use base64::{Engine as _, engine::general_purpose};
-use tekken::config::{TokenInfo, TokenizerVersion};
+mod common;
+
+use tekken::config::TokenizerVersion;
 use tekken::special_tokens::SpecialTokenInfo;
 use tekken::tekkenizer::Tekkenizer;
 
@@ -7,28 +8,7 @@ use tekken::tekkenizer::Tekkenizer;
 fn test_small_vocab() {
     println!("Testing Tekkenizer with small vocabulary...");
 
-    // Create a minimal vocabulary (just byte tokens)
-    let mut vocab = Vec::new();
-    for i in 0..256 {
-        let token_bytes = general_purpose::STANDARD.encode([i as u8]);
-        vocab.push(TokenInfo {
-            rank: i,
-            token_bytes,
-            token_str: Some(format!("byte_{i}")),
-        });
-    }
-
-    // Add a few more tokens
-    vocab.push(TokenInfo {
-        rank: 256,
-        token_bytes: general_purpose::STANDARD.encode(b"hello"),
-        token_str: Some("hello".to_string()),
-    });
-    vocab.push(TokenInfo {
-        rank: 257,
-        token_bytes: general_purpose::STANDARD.encode(b"world"),
-        token_str: Some("world".to_string()),
-    });
+    let vocab = common::small_vocab();
 
     // Create special tokens
     let special_tokens = vec![
@@ -59,12 +39,13 @@ fn test_small_vocab() {
     let tokenizer = Tekkenizer::new(
         vocab,
         &special_tokens,
-        r"[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+|[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]+[\p{Ll}\p{Lm}\p{Lo}\p{M}]*|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n/]*|\s*[\r\n]+|\s+(?!\S)|\s+",
+        common::PATTERN,
         268, // vocab_size (258 + 10)
         10,  // num_special_tokens
         TokenizerVersion::V7,
         None, // no audio config
-    ).expect("Failed to create tokenizer");
+    )
+    .expect("Failed to create tokenizer");
 
     println!("✓ Tokenizer created successfully!");
     let vocab_size = tokenizer.vocab_size();
