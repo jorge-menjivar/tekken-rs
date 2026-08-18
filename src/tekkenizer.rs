@@ -7,6 +7,7 @@ use tiktoken_rs::CoreBPE;
 use crate::audio::{Audio, AudioConfig, AudioEncoder, AudioEncoding};
 use crate::config::{ModelData, TekkenConfig, TokenInfo, TokenizerVersion};
 use crate::errors::{Result, TokenizerError};
+use crate::model_settings::ModelSettingsBuilder;
 use crate::special_tokens::{SpecialTokenInfo, SpecialTokenPolicy, SpecialTokens};
 
 /// A Tekken tokenizer that supports both text and audio tokenization.
@@ -43,6 +44,7 @@ pub struct Tekkenizer {
     vocab_tokens: Vec<TokenInfo>,
     audio_config: Option<AudioConfig>,
     audio_encoder: Option<AudioEncoder>,
+    model_settings_builder: Option<ModelSettingsBuilder>,
 }
 
 impl Tekkenizer {
@@ -191,7 +193,62 @@ impl Tekkenizer {
             vocab_tokens: vocab_tokens_copy,
             audio_config,
             audio_encoder,
+            model_settings_builder: None,
         })
+    }
+
+    /// Sets the model settings builder for this tokenizer.
+    ///
+    /// Model settings builders constrain request-level model settings such as
+    /// reasoning effort. They are only supported by tokenizer versions v15 and
+    /// later; passing `Some` for an earlier version is an error.
+    ///
+    /// # Arguments
+    ///
+    /// * `builder` - The model settings builder, or None to clear it
+    ///
+    /// # Returns
+    ///
+    /// The tokenizer with the builder applied.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The tokenizer version does not support model settings (< v15)
+    /// - The builder's structural validation fails
+    pub fn with_model_settings_builder(
+        mut self,
+        builder: Option<ModelSettingsBuilder>,
+    ) -> Result<Self> {
+        Self::check_model_settings_builder(self.version, builder.as_ref())?;
+        self.model_settings_builder = builder;
+        Ok(self)
+    }
+
+    /// Checks that a model settings builder is allowed for the version and is
+    /// structurally valid.
+    fn check_model_settings_builder(
+        version: TokenizerVersion,
+        builder: Option<&ModelSettingsBuilder>,
+    ) -> Result<()> {
+        if let Some(builder) = builder {
+            if !version.supports_model_settings() {
+                return Err(TokenizerError::InvalidConfig(format!(
+                    "model_settings_builder is not supported for version {}",
+                    version.as_str()
+                )));
+            }
+            builder.validate()?;
+        }
+        Ok(())
+    }
+
+    /// Returns the model settings builder, or None if unsupported or not configured.
+    ///
+    /// Only tokenizer versions v15 and later can carry a model settings builder.
+    #[must_use]
+    pub const fn model_settings_builder(&self) -> Option<&ModelSettingsBuilder> {
+        self.model_settings_builder.as_ref()
     }
 
     /// Loads a tokenizer from a JSON configuration file.
@@ -235,10 +292,23 @@ impl Tekkenizer {
                 ))
             })?;
 
-        let special_tokens = model_data.special_tokens.unwrap_or_else(|| {
-            // Use deprecated special tokens for older versions
-            get_deprecated_special_tokens()
-        });
+        let special_tokens = match model_data.special_tokens {
+            Some(special_tokens) => special_tokens,
+            None => {
+                if version.requires_explicit_special_tokens() {
+                    return Err(TokenizerError::InvalidConfig(format!(
+                        "Special tokens not found in tokenizer file of version {}. \
+                         Please update your tokenizer file and include all special tokens you need.",
+                        version.as_str()
+                    )));
+                }
+                get_deprecated_special_tokens()
+            }
+        };
+
+        // Reject unsupported or invalid model settings before the expensive
+        // vocab decoding and BPE construction below.
+        Self::check_model_settings_builder(version, model_data.model_settings_builder.as_ref())?;
 
         Self::new(
             model_data.vocab,
@@ -248,7 +318,8 @@ impl Tekkenizer {
             model_data.config.default_num_special_tokens,
             version,
             model_data.audio,
-        )
+        )?
+        .with_model_settings_builder(model_data.model_settings_builder)
     }
 
     /// Returns the total vocabulary size including special tokens.
@@ -804,6 +875,7 @@ impl Tekkenizer {
                 version: self.version.as_str().to_string(),
             },
             audio: self.audio_config.clone(),
+            model_settings_builder: self.model_settings_builder.clone(),
         };
 
         // Serialize to JSON

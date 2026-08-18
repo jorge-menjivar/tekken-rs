@@ -28,6 +28,9 @@ Thumbs.db
 # Test outputs
 *_results.json
 *_output.json
+
+# Downloaded test assets (see scripts/download_v15_tokenizer.sh)
+tests/assets/tekken_v15.json
 *.wav
 !samples_jfk.wav
 !test_audio.wav

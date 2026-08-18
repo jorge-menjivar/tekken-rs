@@ -12,9 +12,12 @@ use serde::{Deserialize, Serialize};
 /// - **Instruction tokens**: `BeginInst`, `EndInst` for instruction formatting
 /// - **Tool tokens**: Various tokens for tool call formatting and results
 /// - **Image tokens**: IMG, `ImgBreak`, `ImgEnd` for image content
-/// - **Audio tokens**: Audio, `BeginAudio`, Transcribe for audio content
+/// - **Audio tokens**: Audio, `BeginAudio`, Transcribe, `StreamingPad`,
+///   `StreamingWord`, `TextToAudio`, `AudioToText` for audio content
 /// - **Code tokens**: Prefix, Middle, Suffix for code completion
 /// - **System tokens**: `BeginSystem`, `EndSystem` for system prompts
+/// - **Reasoning tokens**: `BeginThink`, `EndThink` for reasoning content
+/// - **Model settings tokens**: `BeginModelSettings`, `EndModelSettings` (v15+)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SpecialTokens {
     Unk,
@@ -42,6 +45,14 @@ pub enum SpecialTokens {
     Transcribe,
     Args,
     CallId,
+    BeginThink,
+    EndThink,
+    StreamingPad,
+    StreamingWord,
+    TextToAudio,
+    AudioToText,
+    BeginModelSettings,
+    EndModelSettings,
 }
 
 impl SpecialTokens {
@@ -92,6 +103,14 @@ impl SpecialTokens {
             Self::Transcribe => "[TRANSCRIBE]",
             Self::Args => "[ARGS]",
             Self::CallId => "[CALL_ID]",
+            Self::BeginThink => "[THINK]",
+            Self::EndThink => "[/THINK]",
+            Self::StreamingPad => "[STREAMING_PAD]",
+            Self::StreamingWord => "[STREAMING_WORD]",
+            Self::TextToAudio => "[NEXT_AUDIO_TEXT]",
+            Self::AudioToText => "[REPEAT_AUDIO_TEXT]",
+            Self::BeginModelSettings => "[MODEL_SETTINGS]",
+            Self::EndModelSettings => "[/MODEL_SETTINGS]",
         }
     }
 }

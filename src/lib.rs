@@ -9,8 +9,9 @@
 //! - **Text Tokenization**: Full BPE (Byte Pair Encoding) support with special tokens
 //! - **Audio Processing**: Convert audio waveforms to token sequences using mel-scale spectrograms
 //! - **Multimodal Support**: Mix text and audio tokens in a single sequence
-//! - **Version Compatibility**: Support for multiple tokenizer versions (V3, V7, V11, V13)
+//! - **Version Compatibility**: Support for multiple tokenizer versions (V3, V7, V11, V13, V15)
 //! - **Special Tokens**: Comprehensive handling of control, instruction, tool, and media tokens
+//! - **Model Settings**: Parsing and validation of model settings constraints (V15+)
 //!
 //! ## Quick Start
 //!
@@ -88,9 +89,10 @@
 //! The library is organized into several modules:
 //!
 //! - [`tekkenizer`]: Main tokenizer implementation and text processing
-//! - [`audio`]: Audio processing, mel-scale spectrograms, and audio tokenization  
+//! - [`audio`]: Audio processing, mel-scale spectrograms, and audio tokenization
 //! - [`special_tokens`]: Special token definitions and handling policies
 //! - [`config`]: Configuration structures and version management
+//! - [`model_settings`]: Model settings constraints for v15+ tokenizers
 //! - [`errors`]: Comprehensive error handling
 //!
 //! ## Compatibility
@@ -115,6 +117,7 @@
 pub mod audio;
 pub mod config;
 pub mod errors;
+pub mod model_settings;
 pub mod special_tokens;
 pub mod tekkenizer;
 
@@ -122,6 +125,7 @@ pub mod tekkenizer;
 pub use audio::{Audio, AudioConfig, AudioEncoder, AudioSpectrogramConfig};
 pub use config::{TekkenConfig, TokenInfo};
 pub use errors::{Result, TokenizerError};
+pub use model_settings::{ModelSettings, ModelSettingsBuilder, ReasoningEffort};
 pub use special_tokens::SpecialTokenInfo;
 pub use special_tokens::{SpecialTokenPolicy, SpecialTokens};
 pub use tekkenizer::Tekkenizer;
