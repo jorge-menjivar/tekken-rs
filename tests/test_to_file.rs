@@ -1,3 +1,6 @@
+// One long, linear round-trip scenario; splitting it would obscure the flow.
+#![allow(clippy::too_many_lines)]
+
 use std::fs;
 use std::path::Path;
 use tekken::special_tokens::SpecialTokenPolicy;
@@ -17,7 +20,7 @@ fn test_to_file() {
     original_tokenizer
         .to_file(test_output_path)
         .expect("Failed to save tokenizer to file");
-    println!("✓ Successfully saved tokenizer to {}", test_output_path);
+    println!("✓ Successfully saved tokenizer to {test_output_path}");
 
     // Verify file exists
     assert!(
@@ -81,7 +84,7 @@ fn test_to_file() {
     ];
 
     for text in &test_texts {
-        println!("\nTesting text: '{}'", text);
+        println!("\nTesting text: '{text}'");
 
         // Test encoding
         let original_tokens = original_tokenizer
@@ -93,8 +96,7 @@ fn test_to_file() {
 
         assert_eq!(
             original_tokens, loaded_tokens,
-            "Encoded tokens should match for text: '{}'",
-            text
+            "Encoded tokens should match for text: '{text}'"
         );
 
         // Test decoding
@@ -107,8 +109,7 @@ fn test_to_file() {
 
         assert_eq!(
             original_decoded, loaded_decoded,
-            "Decoded text should match for tokens: {:?}",
-            original_tokens
+            "Decoded text should match for tokens: {original_tokens:?}"
         );
     }
 
@@ -121,8 +122,7 @@ fn test_to_file() {
         assert_eq!(
             original_piece.unwrap(),
             loaded_piece.unwrap(),
-            "Token piece should match for ID: {}",
-            token_id
+            "Token piece should match for ID: {token_id}"
         );
     }
 
@@ -165,7 +165,7 @@ fn test_to_file_roundtrip_multiple() {
 
     // Perform multiple save/load cycles
     for i in 1..=3 {
-        let path = format!("tests/assets/test_roundtrip_{}.json", i);
+        let path = format!("tests/assets/test_roundtrip_{i}.json");
 
         if i == 1 {
             original_tokenizer
@@ -191,8 +191,7 @@ fn test_to_file_roundtrip_multiple() {
 
         assert_eq!(
             original_tokens, loaded_tokens,
-            "Tokens should remain consistent after {} save/load cycles",
-            i
+            "Tokens should remain consistent after {i} save/load cycles"
         );
 
         if i == 3 {

@@ -1,17 +1,31 @@
 //! # Tekken - Rust Implementation of Mistral's Multimodal Tokenizer
 //!
 //! `tekken` is a Rust implementation of Mistral's Tekken tokenizer with full support
-//! for both text and audio tokenization. It provides high-performance, memory-safe
+//! for text, image and audio tokenization. It provides high-performance, memory-safe
 //! tokenization that is fully compatible with the Python implementation.
 //!
 //! ## Features
 //!
 //! - **Text Tokenization**: Full BPE (Byte Pair Encoding) support with special tokens
-//! - **Audio Processing**: Convert audio waveforms to token sequences using mel-scale spectrograms
-//! - **Multimodal Support**: Mix text and audio tokens in a single sequence
+//! - **Image Processing**: Resize and normalize images into `[IMG]` token grids (`image` feature)
+//! - **Audio Processing**: Convert audio waveforms to token sequences using mel-scale spectrograms (`audio` feature)
+//! - **Multimodal Support**: Mix text, image and audio tokens in a single sequence
 //! - **Version Compatibility**: Support for multiple tokenizer versions (V3, V7, V11, V13, V15)
 //! - **Special Tokens**: Comprehensive handling of control, instruction, tool, and media tokens
 //! - **Model Settings**: Parsing and validation of model settings constraints (V15+)
+//!
+//! ## Feature Flags
+//!
+//! Both multimodal features are enabled by default and can be turned off to
+//! drop their dependencies:
+//!
+//! - `image` - image decoding and preprocessing, via the `image` crate
+//! - `audio` - audio decoding and preprocessing, via `hound`
+//!
+//! Tokenizer files are parsed the same either way: [`ImageConfig`] and
+//! [`AudioConfig`] are always available, as are the token layouts
+//! [`ImageEncoder`] computes from image dimensions. Only decoding and
+//! preprocessing actual media need the features.
 //!
 //! ## Quick Start
 //!
@@ -36,12 +50,41 @@
 //! # }
 //! ```
 //!
+//! ### Image Tokenization
+//!
+//! ```rust,no_run
+//! # #[cfg(feature = "image")]
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use tekken::{Image, ImageConfig, ImageEncoder, SpecialImageIds};
+//!
+//! // Load an image
+//! let image = Image::from_file("picture.png")?;
+//!
+//! // Configure image processing
+//! let config = ImageConfig::new(14, 1540, 2)?;
+//!
+//! // Create encoder and process the image
+//! let encoder = ImageEncoder::new(
+//!     config,
+//!     SpecialImageIds { img: 10, img_break: 12, img_end: 13 },
+//! );
+//! let encoding = encoder.encode(&image)?;
+//!
+//! println!("Image encoded to {} tokens", encoding.tokens.len());
+//! println!("Preprocessed shape: {:?}", encoding.image.dim());
+//! # Ok(())
+//! # }
+//! # #[cfg(not(feature = "image"))]
+//! # fn main() {}
+//! ```
+//!
 //! ### Audio Tokenization
 //!
 //! ```rust,no_run
+//! # #[cfg(feature = "audio")]
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use tekken::{Audio, AudioConfig, AudioSpectrogramConfig, AudioEncoder};
 //!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Load audio file
 //! let audio = Audio::from_file("audio.wav")?;
 //!
@@ -56,18 +99,28 @@
 //! println!("Audio encoded to {} tokens", encoding.tokens.len());
 //! # Ok(())
 //! # }
+//! # #[cfg(not(feature = "audio"))]
+//! # fn main() {}
 //! ```
 //!
 //! ### Multimodal Tokenization
 //!
 //! ```rust,no_run
-//! use tekken::{Tekkenizer, Audio, SpecialTokenPolicy};
-//!
+//! # #[cfg(all(feature = "audio", feature = "image"))]
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use tekken::{Tekkenizer, Audio, Image, SpecialTokenPolicy};
+//!
 //! let tokenizer = Tekkenizer::from_file("tekken.json")?;
 //!
 //! // Text tokens
 //! let text_tokens = tokenizer.encode("Please transcribe this audio:", true, false)?;
+//!
+//! // Image tokens (if tokenizer has image support)
+//! if tokenizer.has_image_support() {
+//!     let image = Image::from_file("picture.png")?;
+//!     let image_encoding = tokenizer.encode_image(&image)?;
+//!     println!("Image tokens: {}", image_encoding.tokens.len());
+//! }
 //!
 //! // Audio tokens (if tokenizer has audio support)
 //! if tokenizer.has_audio_support() {
@@ -82,6 +135,8 @@
 //! }
 //! # Ok(())
 //! # }
+//! # #[cfg(not(all(feature = "audio", feature = "image")))]
+//! # fn main() {}
 //! ```
 //!
 //! ## Architecture
@@ -89,6 +144,7 @@
 //! The library is organized into several modules:
 //!
 //! - [`tekkenizer`]: Main tokenizer implementation and text processing
+//! - [`image`]: Image loading, preprocessing, and image tokenization
 //! - [`audio`]: Audio processing, mel-scale spectrograms, and audio tokenization
 //! - [`special_tokens`]: Special token definitions and handling policies
 //! - [`config`]: Configuration structures and version management
@@ -101,6 +157,7 @@
 //! tokenizer implementation:
 //!
 //! - Identical tokenization results for text
+//! - Same image resizing, normalization and token layout
 //! - Same audio processing pipeline and token generation
 //! - Compatible special token handling
 //! - Matching mel filter bank computations
@@ -117,14 +174,20 @@
 pub mod audio;
 pub mod config;
 pub mod errors;
+pub mod image;
 pub mod model_settings;
 pub mod special_tokens;
 pub mod tekkenizer;
 
 // Re-export commonly used types for convenience
-pub use audio::{Audio, AudioConfig, AudioEncoder, AudioSpectrogramConfig};
+#[cfg(feature = "audio")]
+pub use audio::{Audio, AudioEncoding};
+pub use audio::{AudioConfig, AudioEncoder, AudioSpectrogramConfig};
 pub use config::{TekkenConfig, TokenInfo};
 pub use errors::{Result, TokenizerError};
+#[cfg(feature = "image")]
+pub use image::{Image, ImageEncoding};
+pub use image::{ImageConfig, ImageEncoder, SpecialImageIds};
 pub use model_settings::{ModelSettings, ModelSettingsBuilder, ReasoningEffort};
 pub use special_tokens::SpecialTokenInfo;
 pub use special_tokens::{SpecialTokenPolicy, SpecialTokens};

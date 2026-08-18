@@ -57,6 +57,16 @@ jobs:
       - name: Run doctests
         run: cargo test --doc --all-features --verbose
 
+      # The audio and image features are optional; make sure the crate still
+      # builds and its remaining tests pass without them.
+      - name: Test without default features
+        run: cargo test --no-default-features --workspace --verbose
+
+      - name: Check each optional feature on its own
+        run: |
+          cargo check --all-targets --no-default-features --features audio
+          cargo check --all-targets --no-default-features --features image
+
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest

@@ -1,7 +1,16 @@
+//! Audio loading, preprocessing and tokenization.
+//!
+//! Decoding and waveform preprocessing require the `audio` feature (enabled by
+//! default). Without it, [`AudioConfig`] is still parsed from tokenizer files
+//! and [`AudioEncoder`] still carries the audio token ids.
+
 use crate::errors::{Result, TokenizerError};
+#[cfg(feature = "audio")]
 use base64::Engine;
+#[cfg(feature = "audio")]
 use ndarray::Array1;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "audio")]
 use std::path::Path;
 
 /// Configuration for generating audio spectrograms.
@@ -210,12 +219,14 @@ impl AudioConfig {
 /// * `sampling_rate` - Sampling rate in Hz
 /// * `format` - Audio format string (e.g., "wav")
 #[derive(Debug, Clone)]
+#[cfg(feature = "audio")]
 pub struct Audio {
     pub audio_array: Array1<f32>,
     pub sampling_rate: usize,
     pub format: String,
 }
 
+#[cfg(feature = "audio")]
 impl Audio {
     /// Creates a new Audio instance.
     ///
@@ -473,6 +484,7 @@ impl Audio {
 /// * `tokens` - Token sequence (u32) representing the audio (includes `begin_audio` and audio tokens)
 /// * `audio` - Processed audio data after resampling and padding
 #[derive(Debug, Clone)]
+#[cfg(feature = "audio")]
 pub struct AudioEncoding {
     pub tokens: Vec<u32>,
     pub audio: Audio,
@@ -552,6 +564,7 @@ impl AudioEncoder {
         clippy::cast_sign_loss,
         clippy::cast_precision_loss
     )]
+    #[cfg(feature = "audio")]
     pub fn encode(&self, mut audio: Audio) -> Result<AudioEncoding> {
         // Resample to target sampling rate
         audio.resample(self.config.sampling_rate)?;
@@ -562,9 +575,11 @@ impl AudioEncoder {
         let signal_length = audio.audio_array.len();
 
         // Calculate signal length after downsampling for spectrogram
-        let signal_length = if !signal_length
+        let signal_length = if signal_length
             .is_multiple_of(self.config.audio_encoding_config.hop_length)
         {
+            signal_length / self.config.audio_encoding_config.hop_length
+        } else {
             #[allow(
                 clippy::cast_possible_truncation,
                 clippy::cast_sign_loss,
@@ -574,8 +589,6 @@ impl AudioEncoder {
                 (signal_length as f64 / self.config.audio_encoding_config.hop_length as f64 - 1.0)
                     .ceil() as usize
             }
-        } else {
-            signal_length / self.config.audio_encoding_config.hop_length
         };
 
         #[allow(
@@ -610,6 +623,7 @@ impl AudioEncoder {
 ///
 /// Based on the Slaney mel-scale conversion used in audio processing libraries.
 #[must_use]
+#[cfg(feature = "audio")]
 pub fn hertz_to_mel(freq: f64) -> f64 {
     let min_log_hertz = 1000.0;
     let min_log_mel = 15.0;
@@ -635,6 +649,7 @@ pub fn hertz_to_mel(freq: f64) -> f64 {
 ///
 /// Frequency in Hertz.
 #[must_use]
+#[cfg(feature = "audio")]
 pub fn mel_to_hertz(mel: f64) -> f64 {
     let min_log_hertz = 1000.0;
     let min_log_mel = 15.0;
@@ -683,6 +698,7 @@ pub fn mel_to_hertz(mel: f64) -> f64 {
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[allow(clippy::cast_precision_loss)]
+#[cfg(feature = "audio")]
 pub fn mel_filter_bank(
     num_frequency_bins: usize,
     num_mel_bins: usize,

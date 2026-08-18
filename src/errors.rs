@@ -41,6 +41,10 @@ pub enum TokenizerError {
     #[error("Audio error: {0}")]
     Audio(String),
 
+    /// Image loading or processing operation failed.
+    #[error("Image error: {0}")]
+    Image(String),
+
     /// Configuration parameters are invalid or inconsistent.
     #[error("Invalid configuration: {0}")]
     InvalidConfig(String),

@@ -1,4 +1,5 @@
 use crate::audio::AudioConfig;
+use crate::image::ImageConfig;
 use crate::model_settings::ModelSettingsBuilder;
 use crate::special_tokens::SpecialTokenInfo;
 use serde::{Deserialize, Serialize};
@@ -49,16 +50,6 @@ pub struct TekkenConfig {
     pub version: String,
 }
 
-/// Configuration for image processing (placeholder).
-///
-/// This struct is reserved for future image processing capabilities.
-/// Currently minimal as audio processing is the primary multimodal focus.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImageConfig {
-    // Image config fields would go here
-    // For now, we'll keep it minimal as audio is the focus
-}
-
 /// Complete model data loaded from a tokenizer configuration file.
 ///
 /// This struct represents the entire configuration and data needed to initialize
@@ -69,9 +60,15 @@ pub struct ImageConfig {
 /// * `vocab` - All vocabulary tokens with their metadata
 /// * `special_tokens` - Optional special token definitions
 /// * `config` - Core tokenizer configuration
+/// * `image` - Optional image processing configuration
+/// * `multimodal` - Deprecated spelling of `image`, only valid up to v11
 /// * `audio` - Optional audio processing configuration
 /// * `model_settings_builder` - Optional model settings constraints (v15+ only)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// Deserialization tolerates a repeated key by keeping its last occurrence,
+/// matching Python's `json.load`. Some released tokenizer files rely on this:
+/// the v11 `tekken.json` of Mistral-Small-3.2 lists `multimodal` twice.
+#[derive(Debug, Clone, Serialize)]
 pub struct ModelData {
     /// All vocabulary tokens with their metadata.
     pub vocab: Vec<TokenInfo>,
@@ -79,11 +76,78 @@ pub struct ModelData {
     pub special_tokens: Option<Vec<SpecialTokenInfo>>,
     /// Core tokenizer configuration parameters.
     pub config: TekkenConfig,
+    /// Optional image processing configuration for multimodal support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<ImageConfig>,
+    /// Deprecated spelling of [`ModelData::image`], only accepted up to v11.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multimodal: Option<ImageConfig>,
     /// Optional audio processing configuration for multimodal support.
     pub audio: Option<AudioConfig>,
     /// Optional model settings constraints (only valid for tokenizers v15+).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_settings_builder: Option<ModelSettingsBuilder>,
+}
+
+impl<'de> Deserialize<'de> for ModelData {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ModelDataVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ModelDataVisitor {
+            type Value = ModelData;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a tekken tokenizer document")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<ModelData, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                use serde::de::Error as _;
+
+                let mut vocab = None;
+                let mut special_tokens = None;
+                let mut config = None;
+                let mut image = None;
+                let mut multimodal = None;
+                let mut audio = None;
+                let mut model_settings_builder = None;
+
+                // Repeated keys overwrite earlier ones instead of being an
+                // error, and unknown keys are skipped.
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "vocab" => vocab = Some(map.next_value()?),
+                        "special_tokens" => special_tokens = map.next_value()?,
+                        "config" => config = Some(map.next_value()?),
+                        "image" => image = map.next_value()?,
+                        "multimodal" => multimodal = map.next_value()?,
+                        "audio" => audio = map.next_value()?,
+                        "model_settings_builder" => model_settings_builder = map.next_value()?,
+                        _ => {
+                            map.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+
+                Ok(ModelData {
+                    vocab: vocab.ok_or_else(|| A::Error::missing_field("vocab"))?,
+                    special_tokens,
+                    config: config.ok_or_else(|| A::Error::missing_field("config"))?,
+                    image,
+                    multimodal,
+                    audio,
+                    model_settings_builder,
+                })
+            }
+        }
+
+        deserializer.deserialize_map(ModelDataVisitor)
+    }
 }
 
 /// Enumeration of supported tokenizer versions.
@@ -222,5 +286,23 @@ impl TokenizerVersion {
     #[must_use]
     pub const fn requires_explicit_special_tokens(&self) -> bool {
         self.version_num() > 7
+    }
+
+    /// Returns whether this version still accepts the deprecated `multimodal`
+    /// key for the image configuration (v11 and earlier).
+    ///
+    /// Later versions must spell that section `image`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tekken::config::TokenizerVersion;
+    ///
+    /// assert!(TokenizerVersion::V11.allows_deprecated_multimodal_key());
+    /// assert!(!TokenizerVersion::V13.allows_deprecated_multimodal_key());
+    /// ```
+    #[must_use]
+    pub const fn allows_deprecated_multimodal_key(&self) -> bool {
+        self.version_num() <= 11
     }
 }

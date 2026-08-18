@@ -9,7 +9,7 @@ pub fn small_vocab() -> Vec<TokenInfo> {
     let mut vocab: Vec<TokenInfo> = (0..256usize)
         .map(|i| TokenInfo {
             rank: i,
-            token_bytes: general_purpose::STANDARD.encode([i as u8]),
+            token_bytes: general_purpose::STANDARD.encode([u8::try_from(i).unwrap()]),
             token_str: Some(format!("byte_{i}")),
         })
         .collect();

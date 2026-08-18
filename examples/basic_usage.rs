@@ -1,3 +1,10 @@
+// casts are range-checked by the surrounding test setup
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+
 use base64::Engine;
 use ndarray::Array1;
 use tekken::{

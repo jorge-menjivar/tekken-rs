@@ -1,3 +1,6 @@
+// casts are range-checked by the surrounding test setup
+#![allow(clippy::cast_possible_truncation)]
+
 use base64::{Engine as _, engine::general_purpose};
 use rustc_hash::FxHashMap;
 use std::time::Instant;

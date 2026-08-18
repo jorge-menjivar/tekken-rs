@@ -1,3 +1,6 @@
+// token ids and vocab sizes are copied verbatim from mistral-common output; separators would make them harder to compare (similar_names: tokens_bos/tokens_eos are the clearest names for these fixtures)
+#![allow(clippy::unreadable_literal, clippy::similar_names)]
+
 use std::sync::OnceLock;
 use tekken::special_tokens::SpecialTokenPolicy;
 use tekken::tekkenizer::Tekkenizer;
