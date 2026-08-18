@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org)
-[![codecov](https://codecov.io/gh/jorge-menjivar/tekken-rs/graph/badge.svg?token=QHZMYHDOJE)](https://codecov.io/gh/jorge-menjivar/tekken-rs)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fjorge-menjivar.github.io%2Ftekken-rs%2Fcoverage.json)](https://jorge-menjivar.github.io/tekken-rs/)
 
 A Rust implementation of the Mistral Tekken tokenizer with audio support. This library provides fast and efficient tokenization capabilities for text and audio data, fully compatible with Mistral AI's tokenizer.
 
