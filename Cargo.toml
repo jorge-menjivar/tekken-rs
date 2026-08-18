@@ -1,6 +1,6 @@
 [package]
 name = "tekken"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "Rust implementation of Mistral Tekken tokenizer with image and audio support"
 authors = ["Jorge Menjivar"]
