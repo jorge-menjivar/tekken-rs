@@ -45,3 +45,6 @@ tests/assets/tekken_v*.json
 .env.local
 
 .claude/
+
+# Coverage output
+lcov.info

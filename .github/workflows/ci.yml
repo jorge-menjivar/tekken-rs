@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -35,24 +35,27 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Cache v15 tokenizer asset
+      # The real-tokenizer suite needs a tekken.json per supported version; the
+      # script verifies each download against a pinned sha256, so the cache key
+      # only has to track the script itself.
+      - name: Cache real tokenizer assets
         uses: actions/cache@v5
         with:
-          path: tests/assets/tekken_v15.json
-          key: tekken-v15-${{ hashFiles('scripts/download_v15_tokenizer.sh') }}
+          path: tests/assets/tekken_v*.json
+          key: tekken-real-tokenizers-${{ hashFiles('scripts/download_test_tokenizers.sh') }}
 
-      - name: Download v15 tokenizer asset
-        run: bash scripts/download_v15_tokenizer.sh
+      - name: Download real tokenizer assets
+        run: bash scripts/download_test_tokenizers.sh
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --all-features --workspace --verbose
         env:
-          TEKKEN_V15_JSON: tests/assets/tekken_v15.json
+          TEKKEN_REQUIRE_REAL_TOKENIZERS: 1
 
       - name: Run doctests
-        run: cargo test --doc --verbose
+        run: cargo test --doc --all-features --verbose
 
   fmt:
     name: Rustfmt
@@ -65,14 +68,17 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-  coverage:
-    name: Coverage
+  clippy:
+    name: Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3
-      - name: Install cargo-tarpaulin
-        uses: taiki-e/install-action@cargo-tarpaulin
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3
+        with:
+          components: clippy
+
       - name: Cache dependencies
         uses: actions/cache@v5
         with:
@@ -80,36 +86,161 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-tarpaulin-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache v15 tokenizer asset
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
+
+      # Lints lib, tests, examples and benches; gates on `-D warnings`.
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features --workspace -- -D warnings
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache dependencies
         uses: actions/cache@v5
         with:
-          path: tests/assets/tekken_v15.json
-          key: tekken-v15-${{ hashFiles('scripts/download_v15_tokenizer.sh') }}
-      - name: Download v15 tokenizer asset
-        run: bash scripts/download_v15_tokenizer.sh
-      - name: Generate code coverage
-        run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
-        env:
-          TEKKEN_V15_JSON: tests/assets/tekken_v15.json
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-llvmcov-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache real tokenizer assets
+        uses: actions/cache@v5
         with:
-          fail_ci_if_error: true
+          path: tests/assets/tekken_v*.json
+          key: tekken-real-tokenizers-${{ hashFiles('scripts/download_test_tokenizers.sh') }}
+
+      - name: Download real tokenizer assets
+        run: bash scripts/download_test_tokenizers.sh
+
+      # Covers the library in src/; the harnesses under tests/ are excluded so
+      # the percentage reflects shipped code only.
+      - name: Coverage (lcov + summary)
+        run: |
+          cargo llvm-cov --all-features --workspace \
+            --ignore-filename-regex 'tests/' \
+            --lcov --output-path lcov.info
+          cargo llvm-cov report --summary-only --ignore-filename-regex 'tests/'
+        env:
+          TEKKEN_REQUIRE_REAL_TOKENIZERS: 1
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-lcov
+          path: lcov.info
+
+  # Publish the browsable HTML coverage report to GitHub Pages (main only).
+  # One-time setup: repo Settings → Pages → Source = "GitHub Actions".
+  # Served at https://jorge-menjivar.github.io/tekken-rs/.
+  coverage-pages:
+    name: Coverage (Pages)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    # Serialize deploys; never cancel an in-flight Pages deployment.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-llvmcov-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache real tokenizer assets
+        uses: actions/cache@v5
+        with:
+          path: tests/assets/tekken_v*.json
+          key: tekken-real-tokenizers-${{ hashFiles('scripts/download_test_tokenizers.sh') }}
+
+      - name: Download real tokenizer assets
+        run: bash scripts/download_test_tokenizers.sh
+
+      # Same scope as the lcov job: renders the static HTML report to
+      # target/llvm-cov/html/.
+      - name: Generate HTML coverage report
+        run: |
+          cargo llvm-cov --all-features --workspace \
+            --ignore-filename-regex 'tests/' --html
+        env:
+          TEKKEN_REQUIRE_REAL_TOKENIZERS: 1
+
+      # Drop a shields.io "endpoint" JSON beside the HTML so the README badge
+      # reads the latest line-% straight from Pages — no Gist or PAT. `report`
+      # reuses the profiles just collected (no rebuild). jq ships on the runner.
+      - name: Write coverage badge JSON
+        run: |
+          set -euo pipefail
+          pct=$(cargo llvm-cov report --json --summary-only --ignore-filename-regex 'tests/' \
+            | jq -r '.data[0].totals.lines.percent')
+          if   awk "BEGIN{exit !($pct>=90)}"; then color=brightgreen
+          elif awk "BEGIN{exit !($pct>=75)}"; then color=green
+          elif awk "BEGIN{exit !($pct>=60)}"; then color=yellow
+          elif awk "BEGIN{exit !($pct>=40)}"; then color=orange
+          else color=red
+          fi
+          printf '{"schemaVersion":1,"label":"coverage","message":"%.1f%%","color":"%s"}\n' \
+            "$pct" "$color" > target/llvm-cov/html/coverage.json
+          cat target/llvm-cov/html/coverage.json
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/llvm-cov/html
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   package-size:
     name: Check Package Size
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3
-      
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3
+
       - name: Check package size
         run: |
           # Run dry-run and capture output
           echo "Checking package size..."
           DRY_RUN_OUTPUT=$(cargo publish --dry-run 2>&1)
-          
+
           # Extract size from output (format: "Packaged X files, Y.ZKiB (A.BKiB compressed)")
           SIZE_LINE=$(echo "$DRY_RUN_OUTPUT" | grep -E "Packaged.*\([0-9.]+[KM]iB compressed\)")
           if [ -z "$SIZE_LINE" ]; then
@@ -121,16 +252,16 @@ jobs:
             COMPRESSED_SIZE=$(echo "$SIZE_LINE" | sed -E 's/.*\(([0-9.]+)([KM])iB compressed\).*/\1 \2/')
             SIZE_NUM=$(echo "$COMPRESSED_SIZE" | cut -d' ' -f1)
             SIZE_UNIT=$(echo "$COMPRESSED_SIZE" | cut -d' ' -f2)
-            
+
             echo "Package compressed size: ${SIZE_NUM}${SIZE_UNIT}iB"
-            
+
             # Convert to KB for comparison
             if [ "$SIZE_UNIT" = "M" ]; then
               SIZE_KB=$(echo "$SIZE_NUM * 1024" | bc | cut -d. -f1)
             else
               SIZE_KB=$(echo "$SIZE_NUM" | cut -d. -f1)
             fi
-            
+
             # Check if size exceeds 50KB
             if [ "$SIZE_KB" -gt 50 ]; then
               echo "::warning::Package size (${SIZE_KB}KB) exceeds 50KB limit"
