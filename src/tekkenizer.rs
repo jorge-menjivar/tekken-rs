@@ -4,9 +4,14 @@ use std::collections::HashMap;
 use std::path::Path;
 use tiktoken_rs::CoreBPE;
 
-use crate::audio::{Audio, AudioConfig, AudioEncoder, AudioEncoding};
+#[cfg(feature = "audio")]
+use crate::audio::{Audio, AudioEncoding};
+use crate::audio::{AudioConfig, AudioEncoder};
 use crate::config::{ModelData, TekkenConfig, TokenInfo, TokenizerVersion};
 use crate::errors::{Result, TokenizerError};
+#[cfg(feature = "image")]
+use crate::image::{Image, ImageEncoding};
+use crate::image::{ImageConfig, ImageEncoder, SpecialImageIds};
 use crate::model_settings::ModelSettingsBuilder;
 use crate::special_tokens::{SpecialTokenInfo, SpecialTokenPolicy, SpecialTokens};
 
@@ -33,7 +38,7 @@ use crate::special_tokens::{SpecialTokenInfo, SpecialTokenPolicy, SpecialTokens}
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub struct Tekkenizer {
-    tekkenizer: CoreBPE,
+    bpe: CoreBPE,
     vocab_size: usize,
     num_special_tokens: usize,
     version: TokenizerVersion,
@@ -44,6 +49,8 @@ pub struct Tekkenizer {
     vocab_tokens: Vec<TokenInfo>,
     audio_config: Option<AudioConfig>,
     audio_encoder: Option<AudioEncoder>,
+    image_config: Option<ImageConfig>,
+    image_encoder: Option<ImageEncoder>,
     model_settings_builder: Option<ModelSettingsBuilder>,
 }
 
@@ -126,7 +133,7 @@ impl Tekkenizer {
         // Create tiktoken CoreBPE from mergeable ranks
         let special_tokens: FxHashMap<String, u32> = FxHashMap::default();
 
-        let tekkenizer = CoreBPE::new(mergeable_ranks.clone(), special_tokens, pattern)
+        let bpe = CoreBPE::new(mergeable_ranks.clone(), special_tokens, pattern)
             .map_err(|e| TokenizerError::InvalidConfig(format!("Failed to create CoreBPE: {e}")))?;
 
         // Create special tokens map
@@ -182,7 +189,7 @@ impl Tekkenizer {
         };
 
         Ok(Self {
-            tekkenizer,
+            bpe,
             vocab_size,
             num_special_tokens,
             version,
@@ -193,8 +200,58 @@ impl Tekkenizer {
             vocab_tokens: vocab_tokens_copy,
             audio_config,
             audio_encoder,
+            image_config: None,
+            image_encoder: None,
             model_settings_builder: None,
         })
+    }
+
+    /// Sets the image configuration for this tokenizer.
+    ///
+    /// Building the image encoder requires the `[IMG]`, `[IMG_BREAK]` and
+    /// `[IMG_END]` control tokens to be present in the vocabulary.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The image configuration, or None to disable image support
+    ///
+    /// # Returns
+    ///
+    /// The tokenizer with image support applied.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The configuration is invalid (a zero-sized field)
+    /// - Any of the image control tokens is missing from the vocabulary
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use tekken::tekkenizer::Tekkenizer;
+    /// # use tekken::image::ImageConfig;
+    /// # let tokenizer = Tekkenizer::from_file("tekken.json")?;
+    /// let tokenizer = tokenizer.with_image_config(Some(ImageConfig::new(14, 1540, 2)?))?;
+    /// assert!(tokenizer.has_image_support());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn with_image_config(mut self, config: Option<ImageConfig>) -> Result<Self> {
+        self.image_encoder = match &config {
+            Some(config) => {
+                config.validate()?;
+                Some(ImageEncoder::new(
+                    config.clone(),
+                    SpecialImageIds {
+                        img: self.get_control_token(SpecialTokens::Img.as_str())?,
+                        img_break: self.get_control_token(SpecialTokens::ImgBreak.as_str())?,
+                        img_end: self.get_control_token(SpecialTokens::ImgEnd.as_str())?,
+                    },
+                ))
+            }
+            None => None,
+        };
+        self.image_config = config;
+        Ok(self)
     }
 
     /// Sets the model settings builder for this tokenizer.
@@ -307,6 +364,21 @@ impl Tekkenizer {
         // vocab decoding and BPE construction below.
         Self::check_model_settings_builder(version, model_data.model_settings_builder.as_ref())?;
 
+        let image_config = match model_data.multimodal {
+            // `multimodal` is the pre-v13 spelling of `image` and takes
+            // precedence where it is still allowed.
+            Some(config) => {
+                if !version.allows_deprecated_multimodal_key() {
+                    return Err(TokenizerError::InvalidConfig(format!(
+                        "The image config has to be called 'image' for tokenizers of version {}.",
+                        version.as_str()
+                    )));
+                }
+                Some(config)
+            }
+            None => model_data.image,
+        };
+
         Self::new(
             model_data.vocab,
             &special_tokens,
@@ -316,6 +388,7 @@ impl Tekkenizer {
             version,
             model_data.audio,
         )?
+        .with_image_config(image_config)?
         .with_model_settings_builder(model_data.model_settings_builder)
     }
 
@@ -453,9 +526,7 @@ impl Tekkenizer {
         add_beginning_of_sequence: bool,
         add_end_of_sequence: bool,
     ) -> Result<Vec<u32>> {
-        let (tokens, _) = self
-            .tekkenizer
-            .encode(text, &std::collections::HashSet::new());
+        let (tokens, _) = self.bpe.encode(text, &std::collections::HashSet::new());
         let mut tokens: Vec<u32> = tokens;
 
         // Shift tokens to account for special tokens
@@ -622,7 +693,7 @@ impl Tekkenizer {
                 .map(|&t| t - self.num_special_tokens as u32)
                 .collect();
             let decoded_text = self
-                .tekkenizer
+                .bpe
                 .decode(shifted_tokens)
                 .map_err(|e| TokenizerError::Tokenizers(format!("{e:?}")))?;
             decoded.push(decoded_text);
@@ -749,7 +820,7 @@ impl Tekkenizer {
             let shifted_id = token_id - self.num_special_tokens as u32;
 
             // Try to decode the token - this might fail for some byte tokens
-            match self.tekkenizer.decode(vec![shifted_id]) {
+            match self.bpe.decode(vec![shifted_id]) {
                 Ok(decoded) => Ok(decoded.as_bytes().to_vec()),
                 Err(e) => {
                     // If decoding fails, try to get the raw bytes from the vocabulary
@@ -779,6 +850,8 @@ impl Tekkenizer {
     ///
     /// An `AudioEncoding` containing the token sequence and processed audio data.
     ///
+    /// Requires the `audio` feature.
+    ///
     /// # Errors
     ///
     /// Returns an error if:
@@ -797,6 +870,7 @@ impl Tekkenizer {
     /// println!("Audio encoded to {} tokens", encoding.tokens.len());
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[cfg(feature = "audio")]
     pub fn encode_audio(&self, audio: Audio) -> Result<AudioEncoding> {
         self.audio_encoder.as_ref().map_or_else(
             || {
@@ -811,7 +885,8 @@ impl Tekkenizer {
     /// Checks if this tokenizer instance supports audio processing.
     ///
     /// Audio support depends on the tokenizer configuration containing audio settings
-    /// and the presence of required audio special tokens.
+    /// and the presence of required audio special tokens. Turning a waveform
+    /// into tokens additionally needs the `audio` feature.
     ///
     /// # Returns
     ///
@@ -830,6 +905,80 @@ impl Tekkenizer {
     #[must_use]
     pub const fn audio_config(&self) -> Option<&AudioConfig> {
         self.audio_config.as_ref()
+    }
+
+    /// Encodes an image into tokens and normalized pixel data.
+    ///
+    /// # Arguments
+    ///
+    /// * `image` - The image to encode
+    ///
+    /// # Returns
+    ///
+    /// An `ImageEncoding` containing the token sequence and the preprocessed
+    /// image with shape `(3, height, width)`.
+    ///
+    /// Requires the `image` feature.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The tokenizer has no image configuration
+    /// - The image has a zero dimension
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use tekken::tekkenizer::Tekkenizer;
+    /// # use tekken::image::Image;
+    /// # let tokenizer = Tekkenizer::from_file("tekken.json")?;
+    /// let image = Image::from_file("picture.png")?;
+    /// let encoding = tokenizer.encode_image(&image)?;
+    /// println!("Image encoded to {} tokens", encoding.tokens.len());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[cfg(feature = "image")]
+    pub fn encode_image(&self, image: &Image) -> Result<ImageEncoding> {
+        self.image_encoder.as_ref().map_or_else(
+            || {
+                Err(TokenizerError::Image(
+                    "Image encoder not configured".to_string(),
+                ))
+            },
+            |encoder| encoder.encode(image),
+        )
+    }
+
+    /// Checks if this tokenizer instance supports image processing.
+    ///
+    /// Image support depends on the tokenizer file carrying an image
+    /// configuration and on the image control tokens being present. Turning an
+    /// image into pixels additionally needs the `image` feature; token layouts
+    /// are available either way through [`Tekkenizer::image_encoder`].
+    ///
+    /// # Returns
+    ///
+    /// `true` if image encoding is available, `false` otherwise.
+    #[must_use]
+    pub const fn has_image_support(&self) -> bool {
+        self.image_encoder.is_some()
+    }
+
+    /// Returns a reference to the image configuration, if available.
+    ///
+    /// Returns `None` if the tokenizer was not initialized with image support.
+    #[must_use]
+    pub const fn image_config(&self) -> Option<&ImageConfig> {
+        self.image_config.as_ref()
+    }
+
+    /// Returns a reference to the image encoder, if available.
+    ///
+    /// Useful to compute image token layouts without going through
+    /// [`Tekkenizer::encode_image`].
+    #[must_use]
+    pub const fn image_encoder(&self) -> Option<&ImageEncoder> {
+        self.image_encoder.as_ref()
     }
 
     /// Saves the tokenizer to a file in the same format as `ModelData`.
@@ -871,6 +1020,9 @@ impl Tekkenizer {
                 default_num_special_tokens: self.num_special_tokens,
                 version: self.version.as_str().to_string(),
             },
+            image: self.image_config.clone(),
+            // Always written under the current name, never the deprecated one.
+            multimodal: None,
             audio: self.audio_config.clone(),
             model_settings_builder: self.model_settings_builder.clone(),
         };

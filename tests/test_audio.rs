@@ -1,3 +1,5 @@
+#![cfg(feature = "audio")]
+
 use serde_json::json;
 
 use tekken::audio::{Audio, AudioConfig, AudioEncoder, AudioSpectrogramConfig, mel_filter_bank};

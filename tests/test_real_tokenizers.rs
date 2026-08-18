@@ -7,9 +7,13 @@
 //! a missing file is a hard failure. The expected token ids below were produced
 //! by `mistral-common` 1.11.7 on the same files.
 
+// token ids and vocab sizes are copied verbatim from mistral-common output; separators would make them harder to compare
+#![allow(clippy::unreadable_literal)]
+
 use std::path::PathBuf;
 
 use tekken::config::TokenizerVersion;
+use tekken::image::ImageConfig;
 use tekken::model_settings::ReasoningEffort;
 use tekken::special_tokens::SpecialTokenPolicy;
 use tekken::tekkenizer::Tekkenizer;
@@ -32,6 +36,40 @@ fn real_tokenizer(version: &str) -> Option<Tekkenizer> {
     Some(Tekkenizer::from_file(&path).unwrap_or_else(|e| {
         panic!("Failed to load {}: {e}", path.display());
     }))
+}
+
+/// Checks the image configuration every vision-capable Mistral model ships, and
+/// the token grids `mistral-common` lays out for it.
+fn check_image_support(tokenizer: &Tekkenizer) {
+    assert!(tokenizer.has_image_support());
+    assert_eq!(
+        tokenizer.image_config(),
+        Some(&ImageConfig::new(14, 1540, 2).unwrap())
+    );
+
+    // Real files put the image control tokens at these ranks.
+    assert_eq!(tokenizer.get_control_token("[IMG]").unwrap(), 10);
+    assert_eq!(tokenizer.get_control_token("[IMG_BREAK]").unwrap(), 12);
+    assert_eq!(tokenizer.get_control_token("[IMG_END]").unwrap(), 13);
+
+    let encoder = tokenizer.image_encoder().unwrap();
+    for (width, height, expected_width, expected_height) in [
+        (28, 28, 1, 1),
+        (29, 28, 2, 1),
+        (1024, 768, 37, 28),
+        // Larger than max_image_size, so scaled down to 1540x1155 first
+        (4000, 3000, 55, 42),
+    ] {
+        assert_eq!(
+            encoder.image_to_num_tokens(width, height).unwrap(),
+            (expected_width, expected_height),
+            "{width}x{height} token grid"
+        );
+        assert_eq!(
+            encoder.encode_dimensions(width, height).unwrap().len(),
+            (expected_width + 1) * expected_height
+        );
+    }
 }
 
 /// Checks the properties shared by all real Mistral tekken files: sizes, control
@@ -83,6 +121,9 @@ fn test_real_v3_tokenizer() {
     assert_eq!(tokenizer.get_control_token("[INST]").unwrap(), 3);
     assert_eq!(tokenizer.get_control_token("[/INST]").unwrap(), 4);
 
+    // Text-only model: no image section in the file
+    assert!(!tokenizer.has_image_support());
+
     check_common(&tokenizer);
 }
 
@@ -99,6 +140,8 @@ fn test_real_v7_tokenizer() {
     assert_eq!(tokenizer.get_control_token("[SYSTEM_PROMPT]").unwrap(), 17);
     assert_eq!(tokenizer.get_control_token("[TOOL_CONTENT]").unwrap(), 19);
 
+    assert!(!tokenizer.has_image_support());
+
     check_common(&tokenizer);
 }
 
@@ -113,6 +156,9 @@ fn test_real_v11_tokenizer() {
     assert_eq!(tokenizer.get_control_token("[ARGS]").unwrap(), 32);
     assert_eq!(tokenizer.get_control_token("[CALL_ID]").unwrap(), 33);
 
+    // v11 files still spell the image section "multimodal"
+    check_image_support(&tokenizer);
+
     check_common(&tokenizer);
 }
 
@@ -126,6 +172,8 @@ fn test_real_v13_tokenizer() {
 
     assert_eq!(tokenizer.get_control_token("[ARGS]").unwrap(), 32);
     assert!(tokenizer.model_settings_builder().is_none());
+
+    check_image_support(&tokenizer);
 
     check_common(&tokenizer);
 }
@@ -160,6 +208,8 @@ fn test_real_v15_tokenizer() {
         effort.values,
         vec![ReasoningEffort::None, ReasoningEffort::High]
     );
+
+    check_image_support(&tokenizer);
 
     check_common(&tokenizer);
 }

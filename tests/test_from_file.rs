@@ -1,3 +1,6 @@
+// casts are range-checked by the surrounding test setup
+#![allow(clippy::cast_possible_truncation)]
+
 use tekken::special_tokens::SpecialTokenPolicy;
 use tekken::tekkenizer::Tekkenizer;
 
