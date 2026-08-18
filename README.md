@@ -10,8 +10,9 @@ A Rust implementation of the Mistral Tekken tokenizer with audio support. This l
 
 - **Text Tokenization**: Full compatibility with Mistral's Tekken tokenizer
 - **Audio Support**: Encode and decode audio data with mel-scale spectrogram processing
-- **Multiple Versions**: Support for various tokenizer versions (V7, etc.)
+- **Multiple Versions**: Support for tokenizer versions V3, V7, V11, V13, and V15
 - **Special Tokens**: Complete handling of special tokens (BOS, EOS, audio tokens, etc.)
+- **Model Settings**: Parsing and validation of `model_settings_builder` constraints (V15+)
 
 ## Installation
 

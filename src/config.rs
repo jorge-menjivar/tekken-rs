@@ -1,4 +1,5 @@
 use crate::audio::AudioConfig;
+use crate::model_settings::ModelSettingsBuilder;
 use crate::special_tokens::SpecialTokenInfo;
 use serde::{Deserialize, Serialize};
 
@@ -69,6 +70,7 @@ pub struct ImageConfig {
 /// * `special_tokens` - Optional special token definitions
 /// * `config` - Core tokenizer configuration
 /// * `audio` - Optional audio processing configuration
+/// * `model_settings_builder` - Optional model settings constraints (v15+ only)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelData {
     /// All vocabulary tokens with their metadata.
@@ -79,6 +81,9 @@ pub struct ModelData {
     pub config: TekkenConfig,
     /// Optional audio processing configuration for multimodal support.
     pub audio: Option<AudioConfig>,
+    /// Optional model settings constraints (only valid for tokenizers v15+).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_settings_builder: Option<ModelSettingsBuilder>,
 }
 
 /// Enumeration of supported tokenizer versions.
@@ -92,13 +97,18 @@ pub struct ModelData {
 /// * `V3` - Early version with basic functionality
 /// * `V7` - Version with enhanced special tokens and audio support
 /// * `V11` - Updated version with additional features
-/// * `V13` - Latest version with full multimodal capabilities
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// * `V13` - Version with no call id tokenization and better prompt caching
+/// * `V15` - Latest version with model settings support
+///
+/// Variants are declared in ascending order, so comparison operators
+/// (`<`, `>=`, ...) follow the version ordering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TokenizerVersion {
     V3,
     V7,
     V11,
     V13,
+    V15,
 }
 
 impl TokenizerVersion {
@@ -127,6 +137,7 @@ impl TokenizerVersion {
             "v7" => Some(Self::V7),
             "v11" => Some(Self::V11),
             "v13" => Some(Self::V13),
+            "v15" => Some(Self::V15),
             _ => None,
         }
     }
@@ -152,6 +163,64 @@ impl TokenizerVersion {
             Self::V7 => "v7",
             Self::V11 => "v11",
             Self::V13 => "v13",
+            Self::V15 => "v15",
         }
+    }
+
+    /// Returns the numeric part of the version (e.g., 15 for `V15`).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tekken::config::TokenizerVersion;
+    ///
+    /// assert_eq!(TokenizerVersion::V15.version_num(), 15);
+    /// ```
+    #[must_use]
+    pub const fn version_num(&self) -> u32 {
+        match self {
+            Self::V3 => 3,
+            Self::V7 => 7,
+            Self::V11 => 11,
+            Self::V13 => 13,
+            Self::V15 => 15,
+        }
+    }
+
+    /// Returns whether this version supports model settings (v15 and later).
+    ///
+    /// Tokenizer files of these versions may contain a `model_settings_builder`
+    /// section constraining request-level model settings such as reasoning effort.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tekken::config::TokenizerVersion;
+    ///
+    /// assert!(TokenizerVersion::V15.supports_model_settings());
+    /// assert!(!TokenizerVersion::V13.supports_model_settings());
+    /// ```
+    #[must_use]
+    pub const fn supports_model_settings(&self) -> bool {
+        self.version_num() >= 15
+    }
+
+    /// Returns whether this version requires special tokens to be listed in
+    /// the tokenizer file (versions after v7).
+    ///
+    /// Files of earlier versions may omit the `special_tokens` section, in
+    /// which case a deprecated built-in list is used.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tekken::config::TokenizerVersion;
+    ///
+    /// assert!(TokenizerVersion::V11.requires_explicit_special_tokens());
+    /// assert!(!TokenizerVersion::V7.requires_explicit_special_tokens());
+    /// ```
+    #[must_use]
+    pub const fn requires_explicit_special_tokens(&self) -> bool {
+        self.version_num() > 7
     }
 }
