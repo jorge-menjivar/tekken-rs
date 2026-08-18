@@ -21,7 +21,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tekken = "0.1.0"
+tekken = "0.2.0"
 ```
 
 Or use the Git repository directly:
@@ -44,10 +44,10 @@ dependencies:
 ```toml
 [dependencies]
 # Text only
-tekken = { version = "0.1.0", default-features = false }
+tekken = { version = "0.2.0", default-features = false }
 
 # Text and images
-tekken = { version = "0.1.0", default-features = false, features = ["image"] }
+tekken = { version = "0.2.0", default-features = false, features = ["image"] }
 ```
 
 Tokenizer files parse the same either way: `ImageConfig` and `AudioConfig` are
